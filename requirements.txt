@@ -1,0 +1,8 @@
+fastmcp
+azure-devops
+python-dotenv
+
+# Testing
+pytest
+pytest-asyncio
+pytest-mock
