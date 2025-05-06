@@ -37,7 +37,27 @@ def handle_ado_errors(func: F) -> F:
             logger.error(f"Connection error during {tool_name}: {ce}")
             await ctx.error(f"Azure DevOps connection error during {tool_name}: {ce}")
             return {"error": "Connection Error", "message": "Failed to connect to Azure DevOps."}
+        except RuntimeError as re:
+            # Specifically for service operation failures like update failures
+            logger.error(f"Service error in {tool_name}: {re}")
+            await ctx.error(f"Azure DevOps service error in {tool_name}: {re}")
+            return {"error": "Service Error", "message": str(re), "details": getattr(re, "__cause__", None)}
         except Exception as e:
+            # Check if this is an Azure DevOps service error
+            error_str = str(e)
+            if "AzureDevOpsServiceError" in error_str or "azure.devops.exceptions" in error_str:
+                error_message = error_str
+                if "Reason" in error_str and "not in the list of supported values" in error_str:
+                    # Special handling for the reason field error
+                    await ctx.error(f"The provided reason is not valid for this state transition.")
+                    return {"error": "Invalid Reason", "message": "The reason provided is not supported for this state change."}
+                
+                # Generic Azure DevOps service error
+                logger.error(f"Azure DevOps service error in {tool_name}: {error_message}")
+                await ctx.error(f"Azure DevOps service error: {error_message}")
+                return {"error": "Azure DevOps Error", "message": error_message}
+            
+            # Other unexpected errors
             logger.exception(f"Unexpected error in {tool_name}: {e}")
             await ctx.error(f"An unexpected error occurred in {tool_name}: {e}")
             return {"error": "Server Error", "message": "An internal server error occurred."}

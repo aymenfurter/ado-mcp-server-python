@@ -134,19 +134,53 @@ class WorkItemService(AzureDevOpsBaseService):
         # Filter out fields that were not provided (are None)
         fields_to_update = {k: v for k, v in fields_to_update.items() if v is not None}
 
-        if state is not None and reason is None:
-            self.logger.error("Reason must be provided when updating state for work item ID: %d", work_item_id)
-            raise ValueError("A 'reason' must be provided when updating the 'state'.")
-
         if not fields_to_update:
             self.logger.warning(f"No fields provided to update for work item {work_item_id}.")
             return {"id": work_item_id, "message": "No update fields provided."}
 
+        # First attempt with all fields
         patch_document = self._build_patch_document(fields_to_update)
-        updated_item = self.wit_client.update_work_item(
-            id=work_item_id,
-            project=self.config.project_name,  # Ensure project is specified
-            document=patch_document
-        )
-        self.logger.info(f"Successfully updated work item ID: {work_item_id}")
-        return self._format_work_item_result(updated_item)
+        try:
+            updated_item = self.wit_client.update_work_item(
+                id=work_item_id,
+                project=self.config.project_name,
+                document=patch_document
+            )
+            self.logger.info(f"Successfully updated work item ID: {work_item_id}")
+            return self._format_work_item_result(updated_item)
+        except Exception as e:
+            error_message = str(e)
+            
+            # Check if this is a reason field error
+            if "Reason" in error_message and "not in the list of supported values" in error_message:
+                self.logger.warning(f"Invalid reason value for work item {work_item_id}. Attempting update without reason.")
+                
+                # Try again without the reason field
+                if "System.Reason" in fields_to_update:
+                    del fields_to_update["System.Reason"]
+                    
+                    # If we're setting state but can't set reason, we need a fallback approach
+                    if "System.State" in fields_to_update:
+                        self.logger.info(f"Updating state to '{fields_to_update['System.State']}' without specifying reason")
+                        # Let Azure DevOps use the default reason for this state transition
+                    
+                    # Retry with updated fields
+                    patch_document = self._build_patch_document(fields_to_update)
+                    try:
+                        updated_item = self.wit_client.update_work_item(
+                            id=work_item_id,
+                            project=self.config.project_name,
+                            document=patch_document
+                        )
+                        self.logger.info(f"Successfully updated work item ID: {work_item_id} (without custom reason)")
+                        result = self._format_work_item_result(updated_item)
+                        result["note"] = "Update succeeded without custom reason value"
+                        return result
+                    except Exception as retry_error:
+                        # If retry also fails, raise a more specific error
+                        self.logger.error(f"Failed to update work item {work_item_id} even without reason: {retry_error}")
+                        raise RuntimeError(f"Failed to update work item after removing invalid reason: {retry_error}") from retry_error
+            
+            # Re-raise original error for other cases
+            self.logger.error(f"Failed to update work item {work_item_id}: {error_message}")
+            raise RuntimeError(f"Failed to update work item: {error_message}") from e

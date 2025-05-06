@@ -92,8 +92,26 @@ class ADOMCPTools:
             
         if work_item_id <= 0:
              raise ValueError("work_item_id must be a positive integer.")
-             
-        return await handler.service.update_item(work_item_id, title, description, state, reason)
+        
+        # If state is provided, warn the user about potential reason issues     
+        if state is not None:
+            if reason is None:
+                await ctx.info(f"Updating state to '{state}'. Using default reason for this transition.")
+            else:
+                await ctx.info(f"Updating state to '{state}' with reason '{reason}'. If this fails, the system will try again with default reason.")
+        
+        try:     
+            return await handler.service.update_item(work_item_id, title, description, state, reason)
+        except RuntimeError as e:
+            # Special handling for reason-related errors
+            if "reason" in str(e).lower() and "not in the list of supported values" in str(e):
+                await ctx.warning(f"The provided reason '{reason}' is not supported for the state transition to '{state}'.")
+                if "after removing invalid reason" in str(e):
+                    # This means both attempts failed
+                    await ctx.error("Update failed even after trying with default reason.")
+                    return {"error": "Update Failed", "message": str(e)}
+            # For other runtime errors, just pass through
+            raise
 
     @handle_ado_errors
     @validate_service
