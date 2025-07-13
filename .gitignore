@@ -72,8 +72,8 @@ coverage.xml
 .azure-pipelines/
 
 # Docker artifacts
-*.dockerfile
-**/Dockerfile
+# *.dockerfile
+# **/Dockerfile
 
 # Linting
 .pylint.d/
