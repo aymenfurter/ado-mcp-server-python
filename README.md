@@ -1,3 +1,8 @@
+> **Please notice**  
+> Please consider using the official MCP server:  
+> https://github.com/microsoft/azure-devops-mcp
+
+
 # Azure DevOps MCP Server
 
 This is a Model Context Protocol (MCP) server for Azure DevOps that provides work item management capabilities.
