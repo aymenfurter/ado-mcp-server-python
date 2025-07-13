@@ -1,4 +1,4 @@
-> **Please notice**  
+> [!IMPORTANT]  
 > Please consider using the official MCP server:  
 > https://github.com/microsoft/azure-devops-mcp
 
